@@ -49,15 +49,17 @@
     const self = this;
     return new Promise((resolve) => {
       const iframe = document.createElement("iframe");
-      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&sendframes`
+      // TODO: figure out how to host this with the right headers
+      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio`
       iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
       iframe.src = roomLink;
-      console.log(roomLink);
       iframe.width = hydra.canvas.width
       iframe.height = hydra.canvas.height
       iframe.style.border = "none"
       iframe.style.position = "absolute"
-      iframe.style.left = "-9999px"
+      iframe.style.top = "0"
+      iframe.style.left = "0"
+      iframe.style.visibility = "hidden"
       document.body.appendChild(iframe)
 
       window.addEventListener("message", function (e) {
@@ -66,11 +68,13 @@
           console.log(e.data.action, e.data)
           if (e.data.action === "video-element-created") {
             waitForEl(iframe.contentDocument, "video").then((video) => {
-              self.src = video
-              self.dynamic = true
-              self.tex = self.regl.texture({ data: self.src, ...params})
+              video.addEventListener("playing", function() {
+                self.src = video
+                self.dynamic = true
+                self.tex = self.regl.texture({ data: self.src, ...params})
+                resolve();
+              }, true);
             });
-            resolve();
           }
         }
       });
@@ -78,8 +82,4 @@
   }
 
   hydra.s.forEach((source) => source.initVdoStream = initVdoStream.bind(source));
-
-  await hydra.s[0].initVdoStream("emptyflash_test");
-
-  hydra.synth.src(s0).diff(osc()).out()
 })()

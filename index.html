@@ -4,10 +4,13 @@
     </head>
     <body>
         <script src="https://unpkg.com/hydra-synth"></script>
+        <script src=""></script>
         <script>
             window.hydra = new Hydra();
-            osc().out()
+            import("./hydra-vdo-ninja.js").then(() => {
+                src(s0).diff(osc()).out()
+                s0.initVdoStream("emptyflash_test");
+            })
         </script>
-        <script src="./hydra-vdo-ninja.js"></script>
     </body>
 </html>
