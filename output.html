@@ -8,8 +8,8 @@
         <script>
             window.hydra = new Hydra();
             import("./hydra-vdo-ninja.js").then(() => {
-                src(s0).diff(osc()).out()
-                s0.initVdoStream("emptyflash_test");
+                setVdoOutput("emptyflash_output")
+                osc().out()
             })
         </script>
     </body>

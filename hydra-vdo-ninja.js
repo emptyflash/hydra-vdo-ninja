@@ -25,6 +25,14 @@
 
   const hydra = getHydra();
 
+  function hideElement(el) {
+    el.style.border = "none"
+    el.style.position = "absolute"
+    el.style.top = "0"
+    el.style.left = "0"
+    el.style.visibility = "hidden"
+  }
+
   function waitForEl(root, selector) {
     return new Promise(resolve => {
       if (root.querySelector(selector)) {
@@ -43,6 +51,40 @@
         subtree: true
       });
     });
+  }
+
+  async function setVdoOutput(roomName) {
+    const iframe = document.createElement("iframe");
+    const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&framegrab`
+    iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
+    iframe.src = roomLink;
+    iframe.width = 0
+    iframe.height = 0
+    document.body.appendChild(iframe)
+
+    const stream = hydra.canvas.captureStream(60);
+		const tracks = stream.getVideoTracks();
+    await Promise.all(tracks.map(async track => {
+      const processor = new MediaStreamTrackProcessor(track);
+      const reader = processor.readable.getReader();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          if (value) value.close();
+          break;
+        }
+
+        try {
+          iframe.contentWindow.postMessage({
+            type: 'canvas-frame',
+            frame: value
+          }, '*');
+        } finally {
+          value.close();
+        }
+      }
+    }));
   }
 
   function initVdoStream(roomName, params) {
@@ -70,22 +112,6 @@
 
       let canvas
       let ctx
-      let elementsHidden = false
-
-      function hideElements() {
-        if (!elementsHidden) {
-          iframe.style.border = "none"
-          iframe.style.position = "absolute"
-          iframe.style.top = "0"
-          iframe.style.left = "0"
-          iframe.style.visibility = "hidden"
-          canvas.style.position = "absolute"
-          canvas.style.top = "0"
-          canvas.style.left = "0"
-          canvas.style.visibility = "hidden"
-          elementsHidden = true
-        }
-      }
 
       function initSource(src) {
         self.src = src
@@ -101,12 +127,12 @@
               waitForEl(iframe.contentDocument, "video").then((video) => {
                 if (!video.paused) {
                   initSource(video)
-                  hideElements()
+                  hideElement(iframe)
                   resolve();
                 }
                 video.addEventListener("playing", function() {
                   initSource(video)
-                  hideElements()
+                  hideElement(iframe)
                   resolve();
                 }, true);
               });
@@ -128,7 +154,8 @@
           console.log(e.data)
             const frame = e.data.frame
             if (frame && ctx) {
-              hideElements()
+              hideElement(iframe)
+              hideElement(canvas)
               ctx.drawImage(frame, 0, 0)
               frame.close()
               /* TODO: handle image stream fallback (maybe not worth it)
@@ -148,4 +175,6 @@
   }
 
   hydra.s.forEach((source) => source.initVdoStream = initVdoStream.bind(source));
+
+  window.setVdoOutput = setVdoOutput
 })()

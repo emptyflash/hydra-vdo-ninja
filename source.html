@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    </head>
+    <body>
+        <script src="https://unpkg.com/hydra-synth"></script>
+        <script src=""></script>
+        <script>
+            window.hydra = new Hydra();
+            import("./hydra-vdo-ninja.js").then(() => {
+                s0.initVdoStream("emptyflash_output");
+                src(s0).diff(osc().rotate()).out()
+            })
+        </script>
+    </body>
+</html>
