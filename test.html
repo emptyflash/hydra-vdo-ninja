@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydra-vdo.ninja Integration Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-button {
+            background: #404040;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button:hover { background: #505050; }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            background: #2a2a2a;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .canvas-preview {
+            margin: 10px 0;
+            border: 2px solid #404040;
+            border-radius: 4px;
+        }
+        .canvas-preview h4 {
+            margin: 0 0 5px 0;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Hydra-vdo.ninja Integration Test</h1>
+
+        <div>
+            <button class="test-button" onclick="testHydra()">Test Hydra</button>
+            <button class="test-button" onclick="testVdoNinja()">Test vdo.ninja Integration</button>
+            <button class="test-button" onclick="testStreaming()">Test Streaming API</button>
+            <button class="test-button" onclick="testCanvasRendering()">Test Canvas Rendering</button>
+            <button class="test-button" onclick="testAll()">Run All Tests</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div id="canvasPreviews"></div>
+    </div>
+
+    <!-- Load Hydra -->
+    <script src="https://unpkg.com/hydra-synth"></script>
+
+    <!-- Load our integration library -->
+    <script src="hydra-vdo-ninja.js"></script>
+    <script src="hydra-vdo-ninja-integration.js"></script>
+
+    <script>
+        let testResults = [];
+        let hydraVdo = null;
+
+        function logResult(message, success = true) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${success ? 'success' : 'error'}`;
+            resultDiv.textContent = `${success ? '✓' : '✗'} ${message}`;
+            resultsDiv.appendChild(resultDiv);
+            testResults.push({ message, success });
+        }
+
+        function addCanvasPreview(title, canvas) {
+            const previewsDiv = document.getElementById('canvasPreviews');
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'canvas-preview';
+
+            const titleEl = document.createElement('h4');
+            titleEl.textContent = title;
+            previewDiv.appendChild(titleEl);
+
+            const canvasClone = document.createElement('canvas');
+            canvasClone.width = canvas.width;
+            canvasClone.height = canvas.height;
+            const ctx = canvasClone.getContext('2d');
+            ctx.drawImage(canvas, 0, 0);
+
+            previewDiv.appendChild(canvasClone);
+            previewsDiv.appendChild(previewDiv);
+
+            return canvasClone;
+        }
+
+        function testHydra() {
+            try {
+                // Test if Hydra is loaded
+                if (typeof Hydra === 'undefined') {
+                    logResult('Hydra not found', false);
+                    return;
+                }
+
+                // Test Hydra initialization
+                const hydra = new Hydra({
+                    detectAudio: false,
+                    makeGlobal: true,
+                    width: 640,
+                    height: 360
+                });
+
+                // Test basic Hydra functionality
+                osc(10, 0.1, 1.2).out();
+
+                logResult('Hydra loaded and initialized successfully');
+                logResult('Hydra canvas created: ' + (hydra.canvas ? 'Yes' : 'No'));
+                logResult('Hydra sources available: ' + (window.s0 ? 'Yes' : 'No'));
+
+                // Add Hydra canvas preview
+                addCanvasPreview('Hydra Canvas', hydra.canvas);
+
+            } catch (error) {
+                logResult('Hydra test failed: ' + error.message, false);
+            }
+        }
+
+        function testVdoNinja() {
+            try {
+                // Test if HydraVdoNinja class is available
+                if (typeof HydraVdoNinja === 'undefined') {
+                    logResult('HydraVdoNinja class not found', false);
+                    return;
+                }
+
+                // Test initialization
+                hydraVdo = new HydraVdoNinja(window.hydra, {
+                    width: 640,
+                    height: 360,
+                    fps: 30
+                });
+
+                logResult('HydraVdoNinja class loaded successfully');
+                logResult('Composite canvas created: ' + (hydraVdo.compositeCanvas ? 'Yes' : 'No'));
+                logResult('Streaming methods available: ' + (typeof hydraVdo.startVDOStream === 'function' ? 'Yes' : 'No'));
+
+                // Add composite canvas preview
+                if (hydraVdo.compositeCanvas) {
+                    addCanvasPreview('Composite Canvas', hydraVdo.compositeCanvas);
+                }
+
+            } catch (error) {
+                logResult('vdo.ninja integration test failed: ' + error.message, false);
+            }
+        }
+
+        function testStreaming() {
+            try {
+                // Test global integration
+                if (typeof initVdoNinja === 'undefined') {
+                    logResult('Global integration not found', false);
+                    return;
+                }
+
+                // Initialize global integration
+                const vdo = initVdoNinja({
+                    width: 640,
+                    height: 360
+                });
+
+                logResult('Global integration initialized');
+                logResult('vdo.start method available: ' + (typeof window.vdo?.start === 'function' ? 'Yes' : 'No'));
+                logResult('s0.initVdoNinja method available: ' + (typeof window.s0?.initVdoNinja === 'function' ? 'Yes' : 'No'));
+
+                // Test quick start function
+                const result = startVdoStream('test-stream');
+                logResult('Quick start function works: ' + (result ? 'Yes' : 'No'));
+
+                // Stop immediately to avoid actual streaming
+                stopVdoStream();
+
+            } catch (error) {
+                logResult('Streaming API test failed: ' + error.message, false);
+            }
+        }
+
+        function testCanvasRendering() {
+            try {
+                if (!hydraVdo) {
+                    logResult('HydraVdoNinja not initialized', false);
+                    return;
+                }
+
+                // Test composite canvas rendering
+                hydraVdo._drawComposite();
+
+                // Check if composite canvas has content
+                const compositeCtx = hydraVdo.compositeCtx;
+                const imageData = compositeCtx.getImageData(0, 0, 1, 1);
+                const hasContent = imageData.data.some(value => value !== 0);
+
+                logResult('Composite canvas rendering: ' + (hasContent ? 'Has content' : 'Empty/Black'));
+
+                if (!hasContent) {
+                    logResult('WARNING: Composite canvas appears black. This may cause streaming issues.', false);
+                }
+
+                // Test continuous updates
+                let updateCount = 0;
+                const testUpdates = () => {
+                    if (updateCount < 10) {
+                        hydraVdo._drawComposite();
+                        updateCount++;
+                        requestAnimationFrame(testUpdates);
+                    } else {
+                        const updatedImageData = compositeCtx.getImageData(0, 0, 1, 1);
+                        const stillHasContent = updatedImageData.data.some(value => value !== 0);
+                        logResult('Continuous canvas updates: ' + (stillHasContent ? 'Working' : 'Not updating'));
+                    }
+                };
+                testUpdates();
+
+            } catch (error) {
+                logResult('Canvas rendering test failed: ' + error.message, false);
+            }
+        }
+
+        function testAll() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('canvasPreviews').innerHTML = '';
+            testResults = [];
+
+            testHydra();
+            testVdoNinja();
+            testStreaming();
+            testCanvasRendering();
+
+            // Summary
+            const passed = testResults.filter(r => r.success).length;
+            const total = testResults.length;
+
+            const summary = document.createElement('div');
+            summary.className = 'test-result';
+            summary.style.fontWeight = 'bold';
+            summary.textContent = `Tests completed: ${passed}/${total} passed`;
+            document.getElementById('results').appendChild(summary);
+        }
+
+        // Auto-run basic tests on load
+        window.addEventListener('load', () => {
+            setTimeout(testAll, 1000);
+        });
+    </script>
+</body>
+</html>
+
