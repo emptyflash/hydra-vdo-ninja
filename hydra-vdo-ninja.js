@@ -25,64 +25,52 @@
 
   const hydra = getHydra();
 
+  function waitForEl(root, selector) {
+    return new Promise(resolve => {
+      if (root.querySelector(selector)) {
+        return resolve(root.querySelector(selector));
+      }
+
+      const observer = new MutationObserver(mutations => {
+        if (root.querySelector(selector)) {
+          observer.disconnect();
+          resolve(root.querySelector(selector));
+        }
+      });
+
+      observer.observe(root.body, {
+        childList: true,
+        subtree: true
+      });
+    });
+  }
+
   function initVdoStream(roomName, params) {
     const self = this;
     return new Promise((resolve) => {
       const iframe = document.createElement("iframe");
-      const roomLink = `https://vdo.ninja/?room=${roomName}&cleanoutput&solo&sendframes`
+      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&sendframes`
       iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
       iframe.src = roomLink;
       console.log(roomLink);
       iframe.width = hydra.canvas.width
       iframe.height = hydra.canvas.height
-      /*
       iframe.style.border = "none"
       iframe.style.position = "absolute"
       iframe.style.left = "-9999px"
-      */
       document.body.appendChild(iframe)
-
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      canvas.width = hydra.canvas.width;
-      canvas.height = hydra.canvas.height;
-      console.log(hydra)
-      document.body.appendChild(canvas)
-
-      const streams = [];
-
-      function requestVideoFrame() {
-        streams.forEach((streamID) => {
-          iframe.contentWindow.postMessage({ 
-              streamID,
-              getVideoFrame: true,
-              cib: "video-frame"
-          }, "*");
-        });
-      }
 
       window.addEventListener("message", function (e) {
         if (e.source != iframe.contentWindow) return;
         if ("action" in e.data) {
-          //console.log(e.data.action, e.data)
+          console.log(e.data.action, e.data)
           if (e.data.action === "video-element-created") {
-            self.src = canvas;
-            self.dynamic = true
-            self.tex = self.regl.texture({ data: self.src, ...params})
-            streams.push(e.data.streamID);
-            requestVideoFrame()
+            waitForEl(iframe.contentDocument, "video").then((video) => {
+              self.src = video
+              self.dynamic = true
+              self.tex = self.regl.texture({ data: self.src, ...params})
+            });
             resolve();
-          } else if (e.data.action === "image-frame-capture") {
-            const imageData = e.data.value.imageData
-            if (imageData) {
-              const img = new Image();
-              img.src = URL.createObjectURL(imageData);
-              img.onload = () => {
-                ctx.drawImage(img, 0, 0)
-                URL.revokeObjectURL(img.src);
-              };
-            }
-            requestAnimationFrame(requestVideoFrame)
           }
         }
       });
