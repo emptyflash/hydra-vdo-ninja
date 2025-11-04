@@ -49,8 +49,7 @@
     const self = this;
     return new Promise((resolve) => {
       const iframe = document.createElement("iframe");
-      // TODO: figure out how to host this with the right headers
-      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio&sendframes=https://local.emptyfla.sh`
+      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio`
       iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;cross-origin-isolated;";
       iframe.src = roomLink;
       iframe.width = hydra.canvas.width
@@ -88,30 +87,38 @@
         }
       }
 
+      function initSource(src) {
+        self.src = src
+        self.dynamic = true
+        self.tex = self.regl.texture({ data: self.src, ...params})
+      }
+
       window.addEventListener("message", function (e) {
         if (e.source != iframe.contentWindow) return;
         if ("action" in e.data) {
           if (e.data.action === "video-element-created") {
             if (iframe.contentDocument) {
               waitForEl(iframe.contentDocument, "video").then((video) => {
+                if (!video.paused) {
+                  initSource(video)
+                  hideElements()
+                  resolve();
+                }
                 video.addEventListener("playing", function() {
-                  self.src = video
-                  self.dynamic = true
-                  self.tex = self.regl.texture({ data: self.src, ...params})
+                  initSource(video)
                   hideElements()
                   resolve();
                 }, true);
               });
             } else {
               // We are cross origin so fallback to requesting frames
+              iframe.allow = iframe.allow + 'sendframes=*';
               canvas = document.createElement("canvas");
               ctx = canvas.getContext("2d");
               canvas.width = hydra.canvas.width;
               canvas.height = hydra.canvas.height;
               document.body.appendChild(canvas)
-              self.src = canvas
-              self.dynamic = true
-              self.tex = self.regl.texture({ data: self.src, ...params})
+              initSource(canvas);
               streams.push(e.data.streamID);
               //requestVideoFrame()
             }
