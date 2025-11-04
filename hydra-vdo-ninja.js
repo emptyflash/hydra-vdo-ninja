@@ -50,34 +50,93 @@
     return new Promise((resolve) => {
       const iframe = document.createElement("iframe");
       // TODO: figure out how to host this with the right headers
-      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio`
-      iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
+      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio&sendframes=https://local.emptyfla.sh`
+      iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;cross-origin-isolated;";
       iframe.src = roomLink;
       iframe.width = hydra.canvas.width
       iframe.height = hydra.canvas.height
-      iframe.style.border = "none"
-      iframe.style.position = "absolute"
-      iframe.style.top = "0"
-      iframe.style.left = "0"
-      iframe.style.visibility = "hidden"
       document.body.appendChild(iframe)
+
+      const streams = [];
+
+      function requestVideoFrame() {
+        streams.forEach((streamID) => {
+          iframe.contentWindow.postMessage({ 
+              streamID,
+              getVideoFrame: true,
+              cib: "video-frame"
+          }, "*");
+        });
+      }
+
+      let canvas
+      let ctx
+      let elementsHidden = false
+
+      function hideElements() {
+        if (!elementsHidden) {
+          iframe.style.border = "none"
+          iframe.style.position = "absolute"
+          iframe.style.top = "0"
+          iframe.style.left = "0"
+          iframe.style.visibility = "hidden"
+          canvas.style.position = "absolute"
+          canvas.style.top = "0"
+          canvas.style.left = "0"
+          canvas.style.visibility = "hidden"
+          elementsHidden = true
+        }
+      }
 
       window.addEventListener("message", function (e) {
         if (e.source != iframe.contentWindow) return;
         if ("action" in e.data) {
-          console.log(e.data.action, e.data)
           if (e.data.action === "video-element-created") {
-            waitForEl(iframe.contentDocument, "video").then((video) => {
-              video.addEventListener("playing", function() {
-                self.src = video
-                self.dynamic = true
-                self.tex = self.regl.texture({ data: self.src, ...params})
-                resolve();
-              }, true);
-            });
+            if (iframe.contentDocument) {
+              waitForEl(iframe.contentDocument, "video").then((video) => {
+                video.addEventListener("playing", function() {
+                  self.src = video
+                  self.dynamic = true
+                  self.tex = self.regl.texture({ data: self.src, ...params})
+                  hideElements()
+                  resolve();
+                }, true);
+              });
+            } else {
+              // We are cross origin so fallback to requesting frames
+              canvas = document.createElement("canvas");
+              ctx = canvas.getContext("2d");
+              canvas.width = hydra.canvas.width;
+              canvas.height = hydra.canvas.height;
+              document.body.appendChild(canvas)
+              self.src = canvas
+              self.dynamic = true
+              self.tex = self.regl.texture({ data: self.src, ...params})
+              streams.push(e.data.streamID);
+              //requestVideoFrame()
+            }
           }
         }
-      });
+        if (e.data.type === "frame") {
+          console.log(e.data)
+            const frame = e.data.frame
+            if (frame && ctx) {
+              hideElements()
+              ctx.drawImage(frame, 0, 0)
+              frame.close()
+              /* TODO: handle image stream fallback (maybe not worth it)
+               * TODO: also make a minimal reproduction of chrome bug and file
+              const img = new Image();
+              img.src = imageData;
+              img.onload = () => {
+                ctx.drawImage(img, 0, 0)
+                URL.revokeObjectURL(img.src);
+              };
+              */
+            }
+            //requestAnimationFrame(requestVideoFrame)
+          }
+        });
     });
   }
 
