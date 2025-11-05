@@ -53,17 +53,26 @@
     });
   }
 
+  window.vdoOutputs = window.vdoOutputs || {}
+  window.vdoSources = window.vdoSources || {}
+
   async function setVdoOutput(roomName) {
-    const iframe = document.createElement("iframe");
-    const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&framegrab`
-    iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
-    iframe.src = roomLink;
-    iframe.width = 0
-    iframe.height = 0
+    let iframe
+    if (window.vdoOutputs[roomName]) {
+      iframe = window.vdoOutputs[roomName]
+    } else {
+      iframe = document.createElement("iframe");
+      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&framegrab`
+      iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
+      iframe.src = roomLink;
+      iframe.width = 0
+      iframe.height = 0
+      window.vdoOutputs[roomName] = iframe
+    }
     document.body.appendChild(iframe)
 
     const stream = hydra.canvas.captureStream(60);
-		const tracks = stream.getVideoTracks();
+    const tracks = stream.getVideoTracks();
     await Promise.all(tracks.map(async track => {
       const processor = new MediaStreamTrackProcessor(track);
       const reader = processor.readable.getReader();
@@ -76,7 +85,7 @@
         }
 
         try {
-          iframe.contentWindow.postMessage({
+          window.vdoOutputs[roomName].contentWindow.postMessage({
             type: 'canvas-frame',
             frame: value
           }, '*');
@@ -90,28 +99,19 @@
   function initVdoStream(roomName, params) {
     const self = this;
     return new Promise((resolve) => {
-      const iframe = document.createElement("iframe");
-      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio`
-      iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;cross-origin-isolated;";
-      iframe.src = roomLink;
-      iframe.width = hydra.canvas.width
-      iframe.height = hydra.canvas.height
-      document.body.appendChild(iframe)
-
-      const streams = [];
-
-      function requestVideoFrame() {
-        streams.forEach((streamID) => {
-          iframe.contentWindow.postMessage({ 
-              streamID,
-              getVideoFrame: true,
-              cib: "video-frame"
-          }, "*");
-        });
+      let iframe
+      if (window.vdoSources[roomName]) {
+        iframe = window.vdoSources[roomName]
+      } else {
+        iframe = document.createElement("iframe");
+        const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio`
+        iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;cross-origin-isolated;";
+        iframe.src = roomLink;
+        iframe.width = hydra.canvas.width
+        iframe.height = hydra.canvas.height
+        window.vdoSources[roomName] = iframe
       }
-
-      let canvas
-      let ctx
+      document.body.appendChild(iframe)
 
       function initSource(src) {
         self.src = src
@@ -123,6 +123,7 @@
         if (e.source != iframe.contentWindow) return;
         if ("action" in e.data) {
           if (e.data.action === "video-element-created") {
+            console.log(e.data)
             if (iframe.contentDocument) {
               waitForEl(iframe.contentDocument, "video").then((video) => {
                 if (!video.paused) {
@@ -136,41 +137,10 @@
                   resolve();
                 }, true);
               });
-            } else {
-              // We are cross origin so fallback to requesting frames
-              iframe.allow = iframe.allow + 'sendframes=*';
-              canvas = document.createElement("canvas");
-              ctx = canvas.getContext("2d");
-              canvas.width = hydra.canvas.width;
-              canvas.height = hydra.canvas.height;
-              document.body.appendChild(canvas)
-              initSource(canvas);
-              streams.push(e.data.streamID);
-              //requestVideoFrame()
             }
           }
         }
-        if (e.data.type === "frame") {
-          console.log(e.data)
-            const frame = e.data.frame
-            if (frame && ctx) {
-              hideElement(iframe)
-              hideElement(canvas)
-              ctx.drawImage(frame, 0, 0)
-              frame.close()
-              /* TODO: handle image stream fallback (maybe not worth it)
-               * TODO: also make a minimal reproduction of chrome bug and file
-              const img = new Image();
-              img.src = imageData;
-              img.onload = () => {
-                ctx.drawImage(img, 0, 0)
-                URL.revokeObjectURL(img.src);
-              };
-              */
-            }
-            //requestAnimationFrame(requestVideoFrame)
-          }
-        });
+      });
     });
   }
 

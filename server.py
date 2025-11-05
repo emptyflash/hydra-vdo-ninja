@@ -11,4 +11,10 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
 with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
     print(f"serving at port {PORT}")
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt caught, server stopping.")
+    finally:
+        httpd.server_close()
+        print("Server closed.")
