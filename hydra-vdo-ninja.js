@@ -1,6 +1,6 @@
 (async () => {
   function getHydra() {
-    const whereami = window.location?.href?.includes("hydra.ojack.xyz")
+    const whereami = window.location?.href?.includes("hydra.ojack.xyz") ||  window.location?.href?.includes("api.hydrasynth.xyz")
       ? "editor"
       : window.atom?.packages
       ? "atom"

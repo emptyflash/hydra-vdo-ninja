@@ -24,6 +24,10 @@ This project aims to replace pb.setName and s0.initStream functionality which ha
 - Basic knowledge of Hydra
 - Access to VDO.Ninja rooms
 
+### Caveats
+
+This will only work on `api.hydrasynth.xyz` due to COOP and COEP header limitations. `hydra.ojack.xyz` will not work because it's hosted on GitHub Pages which does not allow us to set custom headers.
+
 ## API Reference
 
 ### `setVdoOutput(roomName)`
@@ -44,9 +48,13 @@ Initializes a Hydra source from a VDO.Ninja room stream.
 ### Example 1: Simple Output Streaming
 
 ```javascript
+await import("https://cdn.jsdelivr.net/gh/emptyflash/hydra-vdo-ninja/hydra-vdo-ninja.js")
+
 setVdoOutput("hydra_output")
 
-osc().rotate(.1,.1).out()
+s0.initCam()
+
+src(s0).out()
 ```
 
 ### Example 2: Video Processing Pipeline
