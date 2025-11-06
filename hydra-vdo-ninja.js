@@ -62,7 +62,7 @@
       iframe = window.vdoOutputs[roomName]
     } else {
       iframe = document.createElement("iframe");
-      const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&framegrab`
+      const roomLink = `https://vdo.emptyfla.sh/?room=${roomName}&framegrab`
       iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;";
       iframe.src = roomLink;
       iframe.width = 0
@@ -71,7 +71,7 @@
     }
     document.body.appendChild(iframe)
 
-    const stream = hydra.canvas.captureStream(60);
+    const stream = hydra.canvas.captureStream(30);
     const tracks = stream.getVideoTracks();
     await Promise.all(tracks.map(async track => {
       const processor = new MediaStreamTrackProcessor(track);
@@ -84,13 +84,21 @@
           break;
         }
 
+        let frame = value
+        if (!iframe.contentDocument) {
+          // We're cross-origin, so create an image bitmap to pass
+          frame = await createImageBitmap(value);
+        }
+
         try {
           window.vdoOutputs[roomName].contentWindow.postMessage({
             type: 'canvas-frame',
-            frame: value
-          }, '*');
+            frame,
+            timestamp: value.timestamp,
+          }, '*', [frame]);
         } finally {
-          value.close();
+          frame.close();
+          value.close()
         }
       }
     }));
@@ -104,11 +112,11 @@
         iframe = window.vdoSources[roomName]
       } else {
         iframe = document.createElement("iframe");
-        const roomLink = `https://local.emptyfla.sh/vdo.ninja/?room=${roomName}&cleanoutput&solo&&noaudio`
+        const roomLink = `https://vdo.emptyfla.sh/?room=${roomName}&cleanoutput&solo&noaudio&sendframes=*`
         iframe.allow = "camera;microphone;fullscreen;display-capture;autoplay;cross-origin-isolated;";
         iframe.src = roomLink;
-        iframe.width = hydra.canvas.width
-        iframe.height = hydra.canvas.height
+        iframe.width = 0
+        iframe.height = 0
         window.vdoSources[roomName] = iframe
       }
       document.body.appendChild(iframe)
@@ -119,25 +127,43 @@
         self.tex = self.regl.texture({ data: self.src, ...params})
       }
 
+      let canvas
+      let ctx
+
       window.addEventListener("message", function (e) {
         if (e.source != iframe.contentWindow) return;
         if ("action" in e.data) {
           if (e.data.action === "video-element-created") {
-            console.log(e.data)
             if (iframe.contentDocument) {
               waitForEl(iframe.contentDocument, "video").then((video) => {
                 if (!video.paused) {
                   initSource(video)
-                  hideElement(iframe)
                   resolve();
                 }
                 video.addEventListener("playing", function() {
                   initSource(video)
-                  hideElement(iframe)
                   resolve();
                 }, true);
               });
+            } else {
+              // We are cross origin so fallback to requesting frames
+              canvas = document.createElement("canvas");
+              ctx = canvas.getContext("2d");
+              canvas.width = hydra.canvas.width;
+              canvas.height = hydra.canvas.height;
+              hideElement(canvas)
+              document.body.appendChild(canvas)
+              initSource(canvas);
+              resolve();
             }
+          }
+        } else if (e.data.type === "frame") {
+          const frame = e.data.frame
+          if (frame) {
+            if (ctx) {
+              ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
+            }
+            frame.close()
           }
         }
       });
